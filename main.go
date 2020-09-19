@@ -2,7 +2,7 @@ package main
 
 import (
 	"net/http"
-	"fmt"
+	"time"
 )
 
 const maxConnections = 1
@@ -11,6 +11,7 @@ func payloadHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		w.Write([]byte("OK"))
+		time.Sleep(2 * time.Second)
 	case "PUT":
 		w.Write([]byte("OK"))
 	case "POST":
@@ -23,19 +24,19 @@ func payloadHandler(w http.ResponseWriter, r *http.Request) {
 // limitNumClients is HTTP handling middleware that ensures no more than
 // maxClients requests are passed concurrently to the given handler f.
 func limitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
-	// Counting semaphore using a buffered channel
-	sema := make(chan struct{}, maxClients)
+	// buffered channel that will permit maxClients
+	sema := make(chan bool, maxClients)
 
 	return func(w http.ResponseWriter, req *http.Request) {
-	  sema <- struct{}{}
-	  defer func() { <-sema }()
-	  f(w, req)
+		sema <- true              // send value to the channel
+		defer func() { <-sema }() // done; recieve value from channel but do this after func executed
+		f(w, req)
 	}
-  }
+}
 
 func main() {
 	mux := http.NewServeMux()
 	// limit to maxConnections for this handler
-    mux.HandleFunc("/cache", limitNumClients(payloadHandler,maxConnections))
+	mux.HandleFunc("/cache", limitNumClients(payloadHandler, maxConnections))
 	http.ListenAndServe(":3000", mux)
 }

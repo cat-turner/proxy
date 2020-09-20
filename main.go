@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-const maxConnections = 1
-const maxKeys = 1
-const keyTimeout = time.Duration(100)
-
 type ValueStore struct {
 	LastRead   time.Time
 	Value      string
@@ -87,25 +83,37 @@ func (c *ProxyCache) PurgeKey() {
 	c.Mux.Unlock()
 }
 
+// ExpireKeys ...
 func (c *ProxyCache) ExpireKeys() {
-	if true {
-		keysToExpire := []string{}
-		for k := range c.Data {
-			v, ok := c.Data[k]
-			if ok && v.ExpiryTime.Before(time.Now()) {
-				keysToExpire = append(keysToExpire, k)
-			}
-		}
 
-		for _, k := range keysToExpire {
-			v, ok := c.Data[k]
-			if ok && v.ExpiryTime.Before(time.Now()) {
-				c.Mux.Lock()
-				delete(c.Data, k)
-				c.Mux.Unlock()
+	// Iterate through all keys in the map to check if any have expired
+	// call from a go routine so that this is done async
+	go func() {
+		for true {
+			keysToExpire := []string{}
+			for k := range c.Data {
+				v, ok := c.Data[k]
+				if ok && v.ExpiryTime.Before(time.Now()) {
+					keysToExpire = append(keysToExpire, k)
+				}
 			}
+
+			// this code loops and checks a second time because it is cheap to lookup and I'd rather
+			// not delete a key that was just updated between the first check and the final expiration
+			for _, k := range keysToExpire {
+				v, ok := c.Data[k]
+				if ok && v.ExpiryTime.Before(time.Now()) {
+					c.Mux.Lock()
+					delete(c.Data, k)
+					c.Mux.Unlock()
+				}
+			}
+
+			// sleep for the duration of the timeout
+
+			time.Sleep(time.Second * c.KeyTimeout)
 		}
-	}
+	}()
 }
 
 func (c *ProxyCache) payloadHandler(w http.ResponseWriter, r *http.Request) {
@@ -149,14 +157,37 @@ func limitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
 	}
 }
 
+// Newconstructs a new ProxyCache
+func NewProxyCache(maxKeys *int, keyTimeout *time.Duration) ProxyCache {
+	var maxKeysVal int
+
+	if maxKeys != nil {
+		maxKeysVal = *maxKeys
+	}
+	pc := ProxyCache{
+		Data:    make(map[string]ValueStore),
+		MaxKeys: maxKeysVal,
+	}
+	if keyTimeout != nil {
+		pc.KeyTimeout = *keyTimeout
+		// call method so that it can check what keys can expire
+		pc.ExpireKeys()
+	}
+
+	return pc
+}
+
 func main() {
 
 	mux := http.NewServeMux()
-	pc := ProxyCache{
-		Data:       make(map[string]ValueStore),
-		MaxKeys:    maxKeys,
-		KeyTimeout: keyTimeout,
-	}
+
+	maxConnections := 1
+	maxKeys := 1
+	keyTimeout := time.Duration(10)
+
+	// create a new instance of the proxy cache
+	pc := NewProxyCache(&maxKeys, &keyTimeout)
+
 	// limit to maxConnections for this handler
 	mux.HandleFunc("/", limitNumClients(pc.payloadHandler, maxConnections))
 	http.ListenAndServe(":3000", mux)

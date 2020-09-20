@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"time"
+
+	"github.com/cat-turner/proxy"
 )
 
 // limitNumClients is HTTP handling middleware that ensures no more than
@@ -30,6 +32,6 @@ func main() {
 	pc := proxy.NewProxyCache(&maxKeys, &keyTimeout)
 
 	// limit to maxConnections for this handler
-	mux.HandleFunc("/", limitNumClients(pc.payloadHandler, maxConnections))
+	mux.HandleFunc("/", limitNumClients(pc.PayloadHandler, maxConnections))
 	http.ListenAndServe(":3000", mux)
 }

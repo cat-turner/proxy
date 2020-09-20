@@ -1,5 +1,13 @@
-package redis-proxy
+package proxy
 
+import (
+	"io/ioutil"
+	"log"
+	"net/http"
+	"path"
+	"sync"
+	"time"
+)
 
 type ValueStore struct {
 	LastRead   time.Time
@@ -99,7 +107,7 @@ func (c *ProxyCache) ExpireKeys() {
 	}()
 }
 
-func (c *ProxyCache) payloadHandler(w http.ResponseWriter, r *http.Request) {
+func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 	key := path.Base(r.URL.String())
 
 	if key == "/" {
@@ -126,8 +134,6 @@ func (c *ProxyCache) payloadHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
-
-
 
 // Newconstructs a new ProxyCache
 func NewProxyCache(maxKeys *int, keyTimeout *time.Duration) ProxyCache {

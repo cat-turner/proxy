@@ -87,6 +87,27 @@ func (c *ProxyCache) PurgeKey() {
 	c.Mux.Unlock()
 }
 
+func (c *ProxyCache) ExpireKeys() {
+	if true {
+		keysToExpire := []string{}
+		for k := range c.Data {
+			v, ok := c.Data[k]
+			if ok && v.ExpiryTime.Before(time.Now()) {
+				keysToExpire = append(keysToExpire, k)
+			}
+		}
+
+		for _, k := range keysToExpire {
+			v, ok := c.Data[k]
+			if ok && v.ExpiryTime.Before(time.Now()) {
+				c.Mux.Lock()
+				delete(c.Data, k)
+				c.Mux.Unlock()
+			}
+		}
+	}
+}
+
 func (c *ProxyCache) payloadHandler(w http.ResponseWriter, r *http.Request) {
 	key := path.Base(r.URL.String())
 

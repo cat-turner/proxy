@@ -35,12 +35,23 @@ type ProxyCache struct {
 // Put ...
 func (c *ProxyCache) Put(key string, value string) {
 
-	if c.MaxKeys != 0 && len(c.Data) == c.MaxKeys {
-		go c.PurgeKey()
-	}
-
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
+
+	if c.MaxKeys != 0 && len(c.Data) == c.MaxKeys {
+		lastKey := ""
+		lastRead := time.Now()
+		for k := range c.Data {
+			v, ok := c.Data[k]
+			if ok && v.LastRead.Before(lastRead) {
+				lastKey = k
+				lastRead = v.LastRead
+			}
+		}
+
+		// remove the key that was accessed a longest time
+		delete(c.Data, lastKey)
+	}
 
 	c.Data[key] = ValueStore{
 		Value:      value,
@@ -51,9 +62,10 @@ func (c *ProxyCache) Put(key string, value string) {
 
 // Get ...
 func (c *ProxyCache) Get(key string) *string {
-	c.Mux.Lock()
 
+	c.Mux.Lock()
 	defer c.Mux.Unlock()
+
 	value, ok := c.Data[key]
 
 	if ok {
@@ -65,24 +77,6 @@ func (c *ProxyCache) Get(key string) *string {
 	return nil
 }
 
-// PurgeKey ...
-func (c *ProxyCache) PurgeKey() {
-	lastKey := ""
-	lastRead := time.Now()
-	for k := range c.Data {
-		v, ok := c.Data[k]
-		if ok && v.LastRead.Before(lastRead) {
-			lastKey = k
-			lastRead = v.LastRead
-		}
-	}
-
-	// remove the key that was accessed a longest time
-	c.Mux.Lock()
-	delete(c.Data, lastKey)
-	c.Mux.Unlock()
-}
-
 // ExpireKeys ...
 func (c *ProxyCache) ExpireKeys() {
 
@@ -90,6 +84,9 @@ func (c *ProxyCache) ExpireKeys() {
 	// call from a go routine so that this is done async
 	go func() {
 		for true {
+
+			c.Mux.Lock()
+
 			keysToExpire := []string{}
 			for k := range c.Data {
 				v, ok := c.Data[k]
@@ -98,19 +95,13 @@ func (c *ProxyCache) ExpireKeys() {
 				}
 			}
 
-			// this code loops and checks a second time because it is cheap to lookup and I'd rather
-			// not delete a key that was just updated between the first check and the final expiration
 			for _, k := range keysToExpire {
-				v, ok := c.Data[k]
-				if ok && v.ExpiryTime.Before(time.Now()) {
-					c.Mux.Lock()
-					delete(c.Data, k)
-					c.Mux.Unlock()
-				}
+				delete(c.Data, k)
 			}
 
-			// sleep for the duration of the timeout
+			c.Mux.Unlock()
 
+			// sleep for the duration of the timeout
 			time.Sleep(time.Second * c.KeyTimeout)
 		}
 	}()
@@ -183,7 +174,7 @@ func main() {
 
 	maxConnections := 1
 	maxKeys := 1
-	keyTimeout := time.Duration(10)
+	keyTimeout := time.Duration(1000)
 
 	// create a new instance of the proxy cache
 	pc := NewProxyCache(&maxKeys, &keyTimeout)

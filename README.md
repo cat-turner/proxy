@@ -28,3 +28,6 @@ The http server implementation creates a new goroutine for each incoming request
 To cap the concurrent number of requests set the limit MAX_CONNECTIONS to your desired limit. I made the assumption that when the number of requests
 exceed the limit any requests made after that limit will be blocked until the total number of requests at the time are below the limit. This library controls the limit of concurrent connections using a buffered channel in a function used as middleware. The capacity of the channel buffer limits the number of simultaneous requests to process.
 
+
+Redis connection
+I used  Go-Redis because of cluster support, which is something we would want to use if it were to go to production.

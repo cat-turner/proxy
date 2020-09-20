@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+// Cache is an interface that is not the in-memory cache used by the proxy
+type Cache interface {
+	Put(key string, value string) error
+	Get(key string) (*string, error)
+}
+
 type ValueStore struct {
 	LastRead   time.Time
 	Value      string
@@ -30,6 +36,9 @@ type ProxyCache struct {
 	// will remain in data until it is expired in Seconds
 	// Zero means no limit
 	KeyTimeout time.Duration
+
+	// Cache is a cache used by the proxy that is not in-memory storage
+	cache Cache
 }
 
 // Put ...
@@ -107,6 +116,7 @@ func (c *ProxyCache) ExpireKeys() {
 	}()
 }
 
+// PayloadHandler ...
 func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 	key := path.Base(r.URL.String())
 
@@ -119,7 +129,20 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 		value := c.Get(key)
 		if value != nil {
 			w.Write([]byte(*value))
+			return
 		}
+
+		// get from cache
+		cv, err := c.cache.Get(key)
+		if err != nil {
+			log.Fatal(err)
+			w.Write([]byte("BAD"))
+		}
+
+		// store the value in the proxy cache
+		go c.Put(key, *cv)
+		w.Write(([]byte(*cv)))
+
 	case http.MethodPut:
 		value, err := ioutil.ReadAll(r.Body)
 
@@ -128,15 +151,24 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("BAD"))
 			return
 		}
-		c.Put(key, string(value))
+
+		go c.Put(key, string(value))
+
+		err = c.cache.Put(key, string(value))
+		if err != nil {
+			log.Fatal(err)
+			w.Write([]byte("BAD"))
+			return
+		}
+
 		w.Write([]byte("OK"))
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-// Newconstructs a new ProxyCache
-func NewProxyCache(maxKeys *int, keyTimeout *time.Duration) ProxyCache {
+// NewProxyCach constructs a new ProxyCache
+func NewProxyCache(maxKeys *int, keyTimeout *time.Duration) *ProxyCache {
 	var maxKeysVal int
 
 	if maxKeys != nil {
@@ -151,6 +183,8 @@ func NewProxyCache(maxKeys *int, keyTimeout *time.Duration) ProxyCache {
 		// call method so that it can check what keys can expire
 		pc.ExpireKeys()
 	}
+	// set up external cache
+	pc.cache = NewRedisClient(keyTimeout)
 
-	return pc
+	return &pc
 }

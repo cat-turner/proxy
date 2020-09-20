@@ -7,19 +7,6 @@ import (
 	"github.com/cat-turner/proxy"
 )
 
-// limitNumClients is HTTP handling middleware that ensures no more than
-// maxClients requests are passed concurrently to the given handler f.
-func limitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
-	// buffered channel that will permit maxClients
-	sema := make(chan bool, maxClients)
-
-	return func(w http.ResponseWriter, req *http.Request) {
-		sema <- true              // send value to the channel
-		defer func() { <-sema }() // done; recieve value from channel but do this after func executed
-		f(w, req)
-	}
-}
-
 func main() {
 
 	mux := http.NewServeMux()
@@ -32,6 +19,6 @@ func main() {
 	pc := proxy.NewProxyCache(&maxKeys, &keyTimeout)
 
 	// limit to maxConnections for this handler
-	mux.HandleFunc("/", limitNumClients(pc.PayloadHandler, maxConnections))
+	mux.HandleFunc("/", proxy.limitNumClients(pc.PayloadHandler, maxConnections))
 	http.ListenAndServe(":3000", mux)
 }

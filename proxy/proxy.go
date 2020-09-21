@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -60,7 +62,7 @@ func (c *ProxyCache) Put(key string, value string) {
 	c.Data[key] = ValueStore{
 		Value:      value,
 		LastRead:   time.Now(),
-		ExpiryTime: time.Now().Add(time.Second * c.KeyTimeout),
+		ExpiryTime: time.Now().Add(c.KeyTimeout),
 	}
 }
 
@@ -106,7 +108,7 @@ func (c *ProxyCache) ExpireKeys() {
 			c.Mux.Unlock()
 
 			// sleep for the duration of the timeout
-			time.Sleep(time.Second * c.KeyTimeout)
+			time.Sleep(c.KeyTimeout)
 		}
 	}()
 }
@@ -115,55 +117,99 @@ func (c *ProxyCache) ExpireKeys() {
 func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 	key := path.Base(r.URL.String())
 
+	w.Header().Set("Content-Type", "application/json")
+
 	if key == "/" {
-		w.Write([]byte("BAD"))
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, `{"error": "bad key"}`)
 		return
 	}
 	switch r.Method {
 	case http.MethodGet:
-		value := c.Get(key)
-		if value != nil {
-			w.Write([]byte(*value))
-			return
-		}
 
-		// try to get key value from external cache
-		cv, err := c.cache.Get(key)
+		value, err := c.HandleGet(key)
+
 		if err != nil {
-			log.Fatal(err)
-			w.Write([]byte("BAD"))
-			return
-		} else if cv == nil {
-			w.Write([]byte("BAD"))
+			log.Print(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"error": "failed get"}`)
 			return
 		}
 
-		// store the value in the proxy cache
-		go c.Put(key, *cv)
-		w.Write(([]byte(*cv)))
+		if value == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, fmt.Sprintf(`{"%v": "%v"}`, key, *value))
 
 	case http.MethodPut:
+
+		// parse body of request to get value
 		value, err := ioutil.ReadAll(r.Body)
 
 		if err != nil {
-			log.Fatal(err)
-			w.Write([]byte("BAD"))
+			log.Print(err)
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, `{"error": "bad value"}`)
 			return
 		}
 
-		go c.Put(key, string(value))
+		err = c.HandlePut(key, string(value))
 
-		err = c.cache.Put(key, string(value))
 		if err != nil {
-			log.Fatal(err)
-			w.Write([]byte("BAD"))
+			log.Print(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"error": "failed put"}`)
 			return
 		}
 
-		w.Write([]byte("OK"))
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, fmt.Sprintf(`{"%v": "%v}`, key, string(value)))
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		io.WriteString(w, `{"error": "method not allowed"}`)
 	}
+}
+
+// HandleGet gets key values from local or external cache
+func (c *ProxyCache) HandleGet(key string) (*string, error) {
+
+	value := c.Get(key)
+
+	if value != nil {
+		return value, nil
+	}
+
+	// try to get key value from external cache
+	cv, err := c.cache.Get(key)
+	if err != nil {
+		return nil, err
+	} else if cv == nil {
+		// external cache did not have key too :shrug:
+		return nil, nil
+	}
+
+	// store the value in the proxy cache
+	go c.Put(key, *cv)
+
+	return cv, nil
+
+}
+
+// HandlePut handles storing key and values at the local and external cache
+func (c *ProxyCache) HandlePut(key string, value string) error {
+
+	go c.Put(key, string(value))
+
+	err := c.cache.Put(key, string(value))
+	if err != nil {
+		return err
+	}
+
+	return nil
+
 }
 
 // NewProxyCache constructs a new ProxyCache complete with an external cache
@@ -182,7 +228,7 @@ func NewProxyCache(config Config) *ProxyCache {
 		pc.ExpireKeys()
 	}
 	// set up external cache
-	pc.cache = NewRedisClient(config.CacheTTL, config.RedisUrl)
+	pc.cache = NewRedisClient(config.RedisTTL, config.RedisUrl)
 
 	return &pc
 }

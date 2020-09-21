@@ -1,7 +1,7 @@
 FROM golang:1.14-alpine
 ENV GO111MODULE=on
 RUN apk update && apk upgrade && \
-    apk add --no-cache bash make
+    apk add --no-cache bash
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-RUN make build-proxy
+RUN go build -o ./proxys .
 
 RUN chmod a+x ./proxys
 EXPOSE $PORT

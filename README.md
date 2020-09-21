@@ -31,3 +31,15 @@ exceed the limit any requests made after that limit will be blocked until the to
 
 Redis connection
 I used  Go-Redis because of cluster support, which is something we would want to use if it were to go to production.
+
+
+
+Running
+
+```
+docker-compose up --build
+````
+
+```
+docker build -t proxy .
+````

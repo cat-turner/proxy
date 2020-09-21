@@ -1,46 +1,4 @@
 
-test-multi-get:
-	for i in `seq 1 1000`; \
-	do\
-		curl  localhost:8080/cache;\
-	done;\
-
-
-test-multi-put:
-	for i in `seq 1 1000`; \
-	do\
-		curl -d "dataNew" -X PUT localhost:3000/cache;\
-	done;\
-
-
-test-multi-get2:
-	for i in `seq 1 1000`; \
-	do\
-		curl  localhost:8080/cache2;\
-	done;\
-
-
-test-multi-put2:
-	for i in `seq 1 1000`; \
-	do\
-		curl -d "dataOtherNew" -X PUT localhost:3000/cache2;\
-	done;\
-
-test-multi-get3:
-	for i in `seq 1 1000`; \
-	do\
-		curl  localhost:8080/cache3;\
-	done;\
-
-
-test-multi-put3:
-	for i in `seq 1 1000`; \
-	do\
-		curl -d "Roxi" -X PUT localhost:8080/cache3;\
-	done;\
-
-
-test: test-multi-get test-multi-put test-multi-get2 test-multi-put2 test-multi-get3 test-multi-put3
 
 
 all:
@@ -48,8 +6,14 @@ all:
 
 build-proxy:
 	mkdir -p bin
-	go build -o ./bin/proxys .
+	go build -o ./bin/proxy .
 
 build-proxy-sequental-processing:
 	mkdir -p bin
-	PROXY_CLIENT_LIMIT=1 go build -o ./bin/proxys .
+	PROXY_CLIENT_LIMIT=1 go build -o ./bin/proxy .
+
+test:
+	# The test should test the Redis proxy in its running state (i.e. by starting the
+	# artifact that would be started in production)
+	docker-compose up -d --no-deps --build redis
+	go test ./...

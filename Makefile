@@ -2,10 +2,12 @@
 
 build-proxy:
 	mkdir -p bin
+	docker-compose up --build -d redis
 	go build -o ./bin/proxy .
 
 build-proxy-sequental-processing:
 	mkdir -p bin
+	docker-compose up --build -d redis
 	PROXY_CLIENT_LIMIT=1 go build -o ./bin/proxy .
 
 test:
@@ -16,6 +18,7 @@ test:
 
 test-resp:
 	# Test RESP client
-	docker-compose up --build -d
+	mkdir -p bin
+	docker-compose up --build -d redis
 	$(MAKE) build-proxy
 	APP_MODE=2 ./bin/proxy

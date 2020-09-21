@@ -15,5 +15,5 @@ build-proxy-sequental-processing:
 test:
 	# The test should test the Redis proxy in its running state (i.e. by starting the
 	# artifact that would be started in production)
-	docker-compose up -d --no-deps --build redis
+	docker-compose up -d
 	go test ./...

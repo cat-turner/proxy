@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// ValueStore is a struct that holds values for the key related to its value and when it was last accessed
 type ValueStore struct {
 	LastRead   time.Time
 	Value      string

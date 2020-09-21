@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Config is a struct to hold configuration values.
 type Config struct {
 	RedisUrl         string
 	RedisTTL         *time.Duration

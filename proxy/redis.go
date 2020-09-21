@@ -8,11 +8,13 @@ import (
 	redis "github.com/go-redis/redis/v8"
 )
 
+// RedisClient is used in this package for the external cache
 type RedisClient struct {
 	Client     redis.Client
 	KeyTimeout time.Duration
 }
 
+// NewRedisClient creates new redis client
 func NewRedisClient(keyTimeout *time.Duration, redisUrl string) RedisClient {
 	var ctx = context.Background()
 	client := redis.NewClient(&redis.Options{

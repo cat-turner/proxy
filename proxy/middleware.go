@@ -10,7 +10,7 @@ func LimitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, req *http.Request) {
 		sema <- true              // send value to the channel
-		defer func() { <-sema }() // done; recieve value from channel but do this after func executed
+		defer func() { <-sema }() // done; receive value from channel but do this after func executed
 		f(w, req)
 	}
 }

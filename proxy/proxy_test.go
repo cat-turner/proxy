@@ -75,6 +75,7 @@ func TestProxyCachedGet(t *testing.T) {
 	// this shows that the proxy is getting its value from the local cache
 	// and not redis
 	err = redisClient.Set(ctx, "roxi", "cute", 0).Err()
+	assert.NoError(err)
 
 	rrAfterSecondSet := httptest.NewRecorder()
 	handler.ServeHTTP(rrAfterSecondSet, req)

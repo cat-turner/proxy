@@ -47,11 +47,16 @@ The code in this module is organized so that the main entry is clearly seperated
 main.go: the entry point of the app. When configured for HTTP (APP_MODE="" or "1") it will run a http server that accepts GET and PUT requests as GET and PUT actions on the local and external cache. When configured for RESP mode (APP_MODE="2") it will accept inputs after the binary is run. This client will accept GET inputs from the inputs when it is run in this mode. This layer also configures the app to suport Sequential concurrent processing ("PROXY_CLIENT_LIMIT"=1) or Parallel concurrent processing ("PROXY_CLIENT_LIMIT"!=1).
 
 proxy:
-    - config: parses variables from the environment and creates a struct that holds values that control how the app functions
-    - proxy: a module that has a proxy that supports Cached GET, Global expiry, LRU eviction, a fixed key capacity, and GET/PUT actions supported through HTTP
-    - redis: a module that interacts with a redis client to interact with a running instance of redis
-    - middleware: restricts number of concurrent http requests to process using buffered go channels and go routines
-    - cache: an interface used by the proxy. Any external cache that follows this interface can be used by the proxy to store values in an external cache.
+
+* config: parses variables from the environment and creates a struct that holds values that control how the app functions
+
+* proxy: a module that has a proxy that supports Cached GET, Global expiry, LRU eviction, a fixed key capacity, and GET/PUT actions supported through HTTP
+
+* redis: a module that interacts with a redis client to interact with a running instance of redis
+
+* middleware: restricts number of concurrent http requests to process using buffered go channels and go routines
+
+* cache: an interface used by the proxy. Any external cache that follows this interface can be used by the proxy to store values in an external cache.
 
 
 ## Algorithmic complexity of the cache operations
@@ -75,9 +80,10 @@ When the app is configured to have a global TTL ("CACHE_TTL") the proxy starts a
 
 ## How long you spent on each part of the project
 
-Planning/Research: 2
-App implementation: 8
-Writing unit tests and debugging: 5
+* Planning/Research: 2
+* App implementation: 8
+* Writing unit tests and debugging: 5
+
 Total: 15 hours
 
 ### Requirements not met

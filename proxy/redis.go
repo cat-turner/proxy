@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"log"
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
@@ -12,22 +13,26 @@ type RedisClient struct {
 	KeyTimeout time.Duration
 }
 
-func NewRedisClient(keyTimeout *time.Duration) RedisClient {
-	rc := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+func NewRedisClient(keyTimeout *time.Duration, redisUrl string) RedisClient {
+	var ctx = context.Background()
+	client := redis.NewClient(&redis.Options{
+		Addr:     redisUrl,
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
-
+	_, err := client.Ping(ctx).Result()
+	if err != nil {
+		log.Fatal(err)
+	}
 	if keyTimeout != nil {
 		return RedisClient{
-			Client:     *rc,
+			Client:     *client,
 			KeyTimeout: *keyTimeout,
 		}
 	}
 
 	return RedisClient{
-		Client: *rc,
+		Client: *client,
 	}
 }
 
@@ -45,7 +50,9 @@ func (rc RedisClient) Put(key string, value string) error {
 func (rc RedisClient) Get(key string) (*string, error) {
 	var ctx = context.Background()
 	val, err := rc.Client.Get(ctx, key).Result()
-	if err != nil {
+	if err == redis.Nil {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 	return &val, nil

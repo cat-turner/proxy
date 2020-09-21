@@ -1,0 +1,32 @@
+version: "3.8"
+
+volumes:
+  redis_data:
+
+services:
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cat-turner/proxy
+    environment:
+      - PORT=8080
+      - REDIS_URL=redis:6379
+      - CACHE_KEY_CAPACITY=100
+      - CACHE_TTL=300
+      - PROXY_CLIENT_LIMIT=1000
+    ports:
+      - '8080:8080'
+    links:
+      - redis
+    depends_on:
+      - redis
+  redis:
+    image: redis:latest
+    command: redis-server --loglevel debug
+    volumes:
+      - $PWD/redis-data:/var/lib/redis
+    expose:
+      - 6379
+    ports:
+      - '6379:6379'

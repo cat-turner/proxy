@@ -9,19 +9,13 @@ import (
 	"time"
 )
 
-// Cache is an interface that is not the in-memory cache used by the proxy
-type Cache interface {
-	Put(key string, value string) error
-	Get(key string) (*string, error)
-}
-
 type ValueStore struct {
 	LastRead   time.Time
 	Value      string
 	ExpiryTime time.Time
 }
 
-// A cache used by the proxy that is safe to use concurrently
+// ProxyCache is a cache used by the proxy that is safe to use concurrently
 type ProxyCache struct {
 	Data map[string]ValueStore
 	Mux  sync.Mutex
@@ -47,6 +41,7 @@ func (c *ProxyCache) Put(key string, value string) {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
+	// only purge LLU if max key limit set
 	if c.MaxKeys != 0 && len(c.Data) == c.MaxKeys {
 		lastKey := ""
 		lastRead := time.Now()
@@ -132,11 +127,15 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// get from cache
+		// try to get key value from external cache
 		cv, err := c.cache.Get(key)
 		if err != nil {
 			log.Fatal(err)
 			w.Write([]byte("BAD"))
+			return
+		} else if cv == nil {
+			w.Write([]byte("BAD"))
+			return
 		}
 
 		// store the value in the proxy cache
@@ -167,24 +166,23 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// NewProxyCach constructs a new ProxyCache
-func NewProxyCache(maxKeys *int, keyTimeout *time.Duration) *ProxyCache {
-	var maxKeysVal int
-
-	if maxKeys != nil {
-		maxKeysVal = *maxKeys
-	}
+// NewProxyCache constructs a new ProxyCache complete with an external cache
+func NewProxyCache(config Config) *ProxyCache {
 	pc := ProxyCache{
-		Data:    make(map[string]ValueStore),
-		MaxKeys: maxKeysVal,
+		Data: make(map[string]ValueStore),
 	}
-	if keyTimeout != nil {
-		pc.KeyTimeout = *keyTimeout
+
+	if config.CacheKeyCapacity != nil {
+		pc.MaxKeys = *config.CacheKeyCapacity
+	}
+
+	if config.CacheTTL != nil {
+		pc.KeyTimeout = *config.CacheTTL
 		// call method so that it can check what keys can expire
 		pc.ExpireKeys()
 	}
 	// set up external cache
-	pc.cache = NewRedisClient(keyTimeout)
+	pc.cache = NewRedisClient(config.CacheTTL, config.RedisUrl)
 
 	return &pc
 }

@@ -15,6 +15,7 @@ type Config struct {
 	CacheKeyCapacity *int
 	CacheTTL         *time.Duration
 	ProxyClientLimit *int
+	Mode             string
 }
 
 func (c Config) getEnv(key string, defaultValue string) string {
@@ -76,5 +77,10 @@ func NewConfig() Config {
 			c.ProxyClientLimit = &lc
 		}
 	}
+	// interaction mode
+	// 1 or "" - http
+	// 2 is RESP
+	c.Mode = c.getEnv("APP_MODE", "")
+
 	return c
 }

@@ -31,6 +31,20 @@ Try out the RESP mode of the proxy:
 make test-resp
 ```
 
+Test stashing a value and key:
+
+```bash
+curl -X PUT -d "cool" localhost:8080/roxi
+```
+
+Note that the item after the route is the key you want to assign.
+
+To get the value, simply use the key as the route.
+
+```bash
+curl localhost:8080/roxi
+```
+
 ## High-level architecture overview
 
 This module has two main components:
